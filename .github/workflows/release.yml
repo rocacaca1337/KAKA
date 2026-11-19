@@ -38,7 +38,7 @@ jobs:
         run: |
           $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
           $setup = (Get-Item -LiteralPath "dist/KAKA-Setup-$version.exe").FullName
-          $installPath = Join-Path $env:LOCALAPPDATA "Programs/KAKA"
+          $installPath = Join-Path $env:LOCALAPPDATA "Programs/kaka-log"
           if (Test-Path -LiteralPath $installPath) { throw "The test runner already has KAKA installed." }
           $installer = Start-Process -FilePath $setup -ArgumentList "/S" -WindowStyle Hidden -PassThru
           if (!$installer.WaitForExit(120000)) {
