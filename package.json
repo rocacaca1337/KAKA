@@ -1,0 +1,63 @@
+{
+  "name": "kaka-log",
+  "version": "1.0.0",
+  "description": "개인용 자동차 정비 이력 관리 Windows 데스크톱 프로그램",
+  "main": "electron/main.cjs",
+  "author": "KAKA contributors",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis portable --x64",
+    "dist:dir": "electron-builder --win --dir --x64",
+    "prestart": "node scripts/ensure-electron.cjs && node scripts/ensure-fonts.cjs",
+    "predist": "node scripts/ensure-fonts.cjs --required",
+    "predist:dir": "node scripts/ensure-fonts.cjs --required"
+  },
+  "devDependencies": {
+    "electron": "35.7.5",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "kr.garagelog.desktop",
+    "productName": "KAKA",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "src/assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "KAKA",
+      "artifactName": "KAKA-Setup-${version}.${ext}",
+      "include": "build/installer.nsh",
+      "deleteAppDataOnUninstall": false,
+      "uninstallDisplayName": "KAKA"
+    },
+    "portable": {
+      "artifactName": "KAKA-Portable-${version}.${ext}"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+﻿KAKA v1.0.0 Windows x64 배포 파일 제작
+
+1. Windows x64용 Node.js와 npm을 준비합니다.
+2. kaka-log 폴더의 BUILD-WINDOWS.cmd를 실행합니다.
+3. dist 폴더에서 빌드 결과를 확인합니다.
+   KAKA-Setup-1.0.0.exe — 설치형
+   KAKA-Portable-1.0.0.exe — 무설치형
+
+소스 빌드에서 도구를 처음 내려받을 때 인터넷 연결이 필요합니다.
+배포한 앱에는 Electron과 경기천년제목체가 포함됩니다.
+설치형과 무설치형 모두 %APPDATA%\KAKA에 데이터를 저장합니다.
+이전 버전과 동일한 저장 위치를 사용하므로 기존 앱을 닫은 후 새 앱을 실행하세요.
