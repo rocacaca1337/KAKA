@@ -1,0 +1,115 @@
+name: Build Windows distribution
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          architecture: x64
+          cache: npm
+      - name: Check release tag
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne "v$version") {
+            throw "The tag must match the package version (v$version)."
+          }
+      - name: Install dependencies
+        run: npm ci
+      - name: Build installer and portable executable
+        run: npm run dist -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Verify unattended installation
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          $setup = (Get-Item -LiteralPath "dist/KAKA-Setup-$version.exe").FullName
+          $installPath = Join-Path $env:LOCALAPPDATA "Programs/KAKA"
+          if (Test-Path -LiteralPath $installPath) { throw "The test runner already has KAKA installed." }
+          $installer = Start-Process -FilePath $setup -ArgumentList "/S" -WindowStyle Hidden -PassThru
+          if (!$installer.WaitForExit(120000)) {
+            Stop-Process -InputObject $installer -ErrorAction SilentlyContinue
+            throw "KAKA installation timed out."
+          }
+          if ($installer.ExitCode -ne 0) { throw "KAKA installation returned $($installer.ExitCode)." }
+          $installed = Get-Item -LiteralPath (Join-Path $installPath "KAKA.exe")
+          if ($installed.VersionInfo.FileVersion -ne $version) { throw "Installed executable version does not match." }
+          if (!(Test-Path -LiteralPath (Join-Path $installPath "resources/app.asar") -PathType Leaf)) {
+            throw "The installer did not extract the app."
+          }
+      - name: Verify build outputs
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          $expected = "KAKA-Setup-$version.exe", "KAKA-Portable-$version.exe"
+          $hashes = foreach ($name in $expected) {
+            $file = Get-Item -LiteralPath "dist/$name"
+            if ($file.Length -eq 0) { throw "Empty build output: $name" }
+            $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $name"
+          }
+          $hashes | Set-Content -Encoding ascii dist/SHA256SUMS.txt
+      - name: Upload Windows executables
+        uses: actions/upload-artifact@v4
+        with:
+          name: KAKA-Windows-x64
+          if-no-files-found: error
+          path: |
+            dist/KAKA-Setup-*.exe
+            dist/KAKA-Portable-*.exe
+            dist/SHA256SUMS.txt
+
+  draft-release:
+    if: github.ref_type == 'tag'
+    needs: windows-installer
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: kaka-release-${{ github.ref_name }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: KAKA-Windows-x64
+          path: release-files
+      - name: Attach files to a draft GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $version = $tag.Substring(1)
+          $assets = @(
+            "release-files/KAKA-Setup-$version.exe",
+            "release-files/KAKA-Portable-$version.exe",
+            "release-files/SHA256SUMS.txt"
+          )
+          foreach ($asset in $assets) {
+            if (!(Test-Path -LiteralPath $asset -PathType Leaf)) { throw "Missing asset: $asset" }
+          }
+          $release = gh release view $tag --json isDraft
+          if ($LASTEXITCODE -eq 0) {
+            if (!(($release | ConvertFrom-Json).isDraft)) {
+              throw "The existing release is already published."
+            }
+            gh release upload $tag @assets --clobber
+          } else {
+            gh release create $tag @assets --draft --verify-tag --title "KAKA $tag" --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw "GitHub Release upload failed." }
